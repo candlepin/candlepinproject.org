@@ -311,29 +311,30 @@ Caveats:
 
 This is not a step that is called as a sequence of the previous algorithm steps, but it is rather called _during_ 2 of the previous steps that were mentioned: the [Prune Pools](#prunePools) step and the [Select Best Entitlement Groups](#selectBestEntGroups).
 
-It is calculating the priority score for a single pool (a stack of pools is scored by the average priority of all its pools). Each pool/product attribute is generating a numerical score (which might be positive, negative, or 0). Each attribute has a weight assigned, that is supposed to be larger than the sum of all less-important attributes combined (e.g. usage: 350 > requires_host+virt_only+sockets+ram+cores+vcpu: 330).
+It is calculating the priority score for a single pool (a stack of pools is scored by the average priority of all its pools). Each pool/product attribute is generating a numerical score (which might be positive, negative, or 0). Each attribute has a weight assigned, that is supposed to be larger than the sum of all less-important attributes combined (e.g. service_type: 350 > requires_host+virt_only+sockets+ram+cores+vcpu: 330).
 
 Attributes are of three types:
-1. Syspurpose attributes (roles, addons, SLA, usage), whose scores are calculated dynamically with a given weight for each one, that represents its importance, based on 3 rules (outlined in the syspurpose part of the 'Scoring' section below). __IMPORTANT: In addition to the 4 syspurpose attributes, the list of syspurpose attributes in this algorithm also includes the 'products' as the strongest attribute, in order to avoid situations where a pool that is considered only because they provide a role has the same score with a pool that provides that role plus a product__.
+1. Syspurpose attributes (roles, addons, SLA, usage, service_type), whose scores are calculated dynamically with a given weight for each one, that represents its importance, based on 3 rules (outlined in the syspurpose part of the 'Scoring' section below). __IMPORTANT: In addition to the 5 syspurpose attributes, the list of syspurpose attributes in this algorithm also includes the 'products' as the strongest attribute, in order to avoid situations where a pool that is considered only because they provide a role has the same score with a pool that provides that role plus a product__.
 1. virt_only and requires_host, which are given static, positive scores.
 1. Compliance attributes (sockets, ram, cores, vcpu) which are calculated dynamically, with positive scores, but with a different algorithm than that of syspurpose attributes.
 
 #### Scoring
 1. Syspurpose dynamic score calculation:
 * Weights:  
-    *products*: 5600  
-    *roles*: 2800  
-    *addons*: 1400  
-    *support_level*: 700  
-    *usage*: 350  
+    *products*: 11200
+    *roles*: 5600
+    *addons*: 2800
+    *support_level*: 1400
+    *usage*: 700
+    *service_type*: 350
 * Rules:  
     *Match rule*: If a customer has an unsatisfied property of a given value and the pool property provides that same value, score a match for the pool:  
   [+1 * attribute_weight]  
     *Null rule*: If a customer’s unsatisfied property is null, and a pool’s property is also null, score a match for the pool.  I.e. “None” matches “None”:  
-  [+0.01 * attribute_weight]  
+  [+0.005 * attribute_weight]
     *Mismatch rule*: If a customer has a specified property of a given value and the pool has that property defined with another value or values, consider that a mismatch and score a negative value as a penalty:  
-  [-0.05 * attribute_weight]  
-* The starting score is 545 (large enough to make sure that if all the highest syspurpose mismatch rules get applied, the total score will not go below zero: 5600 * -0.05 +...+ 350 * -0.05 = -280 -140 -70 -35 -17.5 = -542.5).
+  [-0.025 * attribute_weight]
+* The starting score is 1105 (large enough to make sure that if all the highest syspurpose mismatch rules get applied, the total score will not go below zero: 11200 * -0.05 +...+ 350 * -0.05 = -560 -280 -140 -70 -35 -17.5 = -1102.5).
 1. Static scores for virt_only and requires_host:  
   * [+100] if the pool is virt_only  
   * [+150] if the pool is host-specific (requires_host is non-null)
@@ -348,6 +349,7 @@ Here is an example calculation of a pool's score, based on the attributes set on
 * has not specified any addons
 * has not specified an SLA
 * has specified usage 'my_usage'
+* has not specified service type
 * is not a guest
 1. The pool:
 * covers 'product1'
@@ -355,6 +357,7 @@ Here is an example calculation of a pool's score, based on the attributes set on
 * does not specify any addons
 * does not specify an SLA
 * has usage 'different_usage'
+* does not specify service type
 * does not have virt_only set to true
 * does not have requires_host set
 * does not have ram set
@@ -362,12 +365,13 @@ Here is an example calculation of a pool's score, based on the attributes set on
 * does not have cores set
 * does not have vcpu set
 1. The calculation will be as follows:  
-  Initial default: +545  
-  PRODUCTS: +5600 (MATCH RULE: 1 * 5600)  
-  ROLES: +2800 (MATCH RULE: 1 * 2800)  
-  ADDONS: +14 (NULL RULE: 0.01 * 1400)  
-  SLA: +7 (NULL RULE: 0.01 * 700)  
-  USAGE: -17.5 (MISMATCH RULE: -0.05 * 350)  
+  Initial default: +1105
+  PRODUCTS: +11200 (MATCH RULE: 1 * 11200)
+  ROLES: +5600 (MATCH RULE: 1 * 5600)
+  ADDONS: +14 (NULL RULE: 0.005 * 2800)
+  SLA: +7 (NULL RULE: 0.005 * 1400)
+  USAGE: -17.5 (MISMATCH RULE: -0.025 * 700)
+  SERVICE_TYPE: 1.75 (NULL RULE: 0.005 * 350)
   VIRT_ONLY: +0  
   REQUIRES_HOST: +0  
   SOCKETS: +20  
@@ -375,7 +379,7 @@ Here is an example calculation of a pool's score, based on the attributes set on
   RAM: +20  
   VCPU: +20  
   --------------------------------------  
-  Final Score: 9028.5  
+  Final Score: 17990.25
 
 
 ### Footnotes
